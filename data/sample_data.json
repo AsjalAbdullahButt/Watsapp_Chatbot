@@ -1,0 +1,35 @@
+{
+  "_note": "SAMPLE DATA for testing only. Replace with your own data in the same shape.",
+  "products": [
+    {"product_id": "P-POLO", "name": "Classic Polo", "category": "Men / T-Shirts", "description": "Cotton pique polo, regular fit.", "url": null},
+    {"product_id": "P-HOOD", "name": "Fleece Hoodie", "category": "Men / Winter", "description": "Brushed fleece pullover hoodie with front pocket.", "url": null},
+    {"product_id": "P-KURTA", "name": "Lawn Kurta", "category": "Women / Eastern", "description": "Printed lawn kurta, 3/4 sleeves.", "url": null},
+    {"product_id": "P-DENIM", "name": "Slim Denim Jeans", "category": "Men / Bottoms", "description": "Stretch denim, slim fit.", "url": null}
+  ],
+  "variants": [
+    {"sku": "POLO-BLK-M", "product_id": "P-POLO", "size": "M", "color": "Black", "price": 2200, "quantity_available": 9},
+    {"sku": "POLO-BLK-L", "product_id": "P-POLO", "size": "L", "color": "Black", "price": 2200, "quantity_available": 0},
+    {"sku": "POLO-BLK-XL", "product_id": "P-POLO", "size": "XL", "color": "Black", "price": 2200, "quantity_available": 14},
+    {"sku": "POLO-WHT-M", "product_id": "P-POLO", "size": "M", "color": "White", "price": 2200, "quantity_available": 5},
+    {"sku": "HOOD-BLK-L", "product_id": "P-HOOD", "size": "L", "color": "Black", "price": 3500, "quantity_available": 3},
+    {"sku": "HOOD-BLK-XL", "product_id": "P-HOOD", "size": "XL", "color": "Black", "price": 3500, "quantity_available": 7},
+    {"sku": "HOOD-GRY-XL", "product_id": "P-HOOD", "size": "XL", "color": "Grey", "price": 3500, "quantity_available": 0},
+    {"sku": "KURTA-MRN-S", "product_id": "P-KURTA", "size": "S", "color": "Maroon", "price": 2850, "quantity_available": 11},
+    {"sku": "KURTA-MRN-M", "product_id": "P-KURTA", "size": "M", "color": "Maroon", "price": 2850, "quantity_available": 6},
+    {"sku": "KURTA-TEAL-M", "product_id": "P-KURTA", "size": "M", "color": "Teal", "price": 2850, "quantity_available": 2},
+    {"sku": "DENIM-IND-32", "product_id": "P-DENIM", "size": "32", "color": "Indigo", "price": 4200, "quantity_available": 8},
+    {"sku": "DENIM-IND-34", "product_id": "P-DENIM", "size": "34", "color": "Indigo", "price": 4200, "quantity_available": 4}
+  ],
+  "customers": [
+    {"customer_id": "C-1001", "name": "Ali Raza", "phone": "923001234567"},
+    {"customer_id": "C-1002", "name": "Sana Tariq", "phone": "923217654321"}
+  ],
+  "orders": [
+    {"order_id": "ORD-10021", "customer_id": "C-1001", "status": "Dispatched", "total": 7250, "created_at": "2026-10-03", "courier": "TCS", "tracking_number": "92818281",
+     "items": [{"sku": "HOOD-BLK-XL", "name": "Fleece Hoodie Black XL", "quantity": 2, "unit_price": 3500}]},
+    {"order_id": "ORD-10022", "customer_id": "C-1001", "status": "Processing", "total": 2450, "created_at": "2026-10-06", "courier": null, "tracking_number": null,
+     "items": [{"sku": "POLO-BLK-M", "name": "Classic Polo Black M", "quantity": 1, "unit_price": 2200}]},
+    {"order_id": "ORD-10023", "customer_id": "C-1002", "status": "Delivered", "total": 5950, "created_at": "2026-09-28", "courier": "Leopards", "tracking_number": "LP55120",
+     "items": [{"sku": "KURTA-MRN-M", "name": "Lawn Kurta Maroon M", "quantity": 2, "unit_price": 2850}]}
+  ]
+}
