@@ -67,3 +67,35 @@ def test_health_endpoints(make_client):
     client, _ = make_client([])
     assert client.get("/health/live").json() == {"status": "ok"}
     assert client.get("/health/ready").status_code == 200
+
+
+def test_rate_limit_replies_once_window_exceeded(make_client, sender, settings):
+    settings.rate_limit_messages = 2
+    client, _ = make_client([])
+    for i in range(3):
+        assert post_signed(client, webhook_body(f"wamid.rl{i}")).status_code == 200
+    assert len(sender.sent) == 3
+    assert "too quickly" in sender.sent[-1][1]
+
+
+def test_oversized_content_length_rejected(make_client):
+    client, _ = make_client([])
+    r = client.post("/webhook", content=b"x" * (256 * 1024 + 1), headers={"X-Hub-Signature-256": "sha256=0"})
+    assert r.status_code == 413
+
+
+def test_security_headers_present(make_client):
+    client, _ = make_client([])
+    assert client.get("/health/live").headers["X-Content-Type-Options"] == "nosniff"
+
+
+def test_non_dev_requires_secrets():
+    import pytest
+    from app.core.config import Settings
+    with pytest.raises(ValueError):
+        Settings(_env_file=None, app_env="prod")
+
+
+def test_sanitize_strips_control_and_bidi():
+    from app.whatsapp.inbound import sanitize_text
+    assert sanitize_text("hi\u202e\x00 there\u200b") == "hi there"

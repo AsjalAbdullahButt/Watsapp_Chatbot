@@ -3,6 +3,7 @@
 from functools import lru_cache
 from typing import Literal
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -34,6 +35,23 @@ class Settings(BaseSettings):
 
     # Duplicate-message window
     dedup_ttl_seconds: int = 24 * 60 * 60
+
+    # Abuse protection: messages allowed per phone in a rolling window
+    rate_limit_messages: int = 10
+    rate_limit_window_seconds: int = 60
+
+    # Bound on per-phone in-memory state (history, locks, rate-limit counters)
+    max_tracked_phones: int = 10_000
+
+    @model_validator(mode="after")
+    def _require_secrets_outside_dev(self) -> "Settings":
+        if self.app_env != "dev":
+            required = ("meta_app_secret", "whatsapp_verify_token", "whatsapp_access_token",
+                        "whatsapp_phone_number_id", "groq_api_key")
+            missing = [name for name in required if not getattr(self, name)]
+            if missing:
+                raise ValueError(f"missing required settings for {self.app_env}: {', '.join(missing)}")
+        return self
 
     @property
     def dev_endpoints_enabled(self) -> bool:

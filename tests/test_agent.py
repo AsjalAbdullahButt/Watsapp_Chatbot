@@ -113,3 +113,16 @@ def test_history_is_kept_per_phone(make_client):
     _chat(client, "second from ali", phone=ALI)
     contents = [m["content"] for m in llm.calls[2][0] if m["role"] in {"user", "assistant"}]
     assert contents == ["first from ali", "Hi Ali", "second from ali"]
+
+
+def test_list_my_orders_returns_only_own_orders(make_client):
+    client, llm = make_client([call("list_my_orders", {}), say("done")])
+    _chat(client, "mere orders")
+    payload = llm.calls[1][0][-1]["content"]
+    assert "ORD-10021" in payload and "ORD-10022" in payload and "ORD-10023" not in payload
+
+
+def test_list_my_orders_unknown_number_not_linked(make_client):
+    client, llm = make_client([call("list_my_orders", {}), say("done")])
+    _chat(client, "my orders", phone="923009999999")
+    assert "CUSTOMER_NOT_LINKED" in llm.calls[1][0][-1]["content"]

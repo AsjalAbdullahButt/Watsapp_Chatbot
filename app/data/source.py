@@ -65,6 +65,7 @@ class BusinessDataSource(Protocol):
     def get_product(self, product_id: str) -> Product | None: ...
     def get_order(self, order_id: str) -> Order | None: ...
     def find_customer_by_phone(self, phone: str) -> Customer | None: ...
+    def orders_for_customer(self, customer_id: str) -> list[Order]: ...
 
 
 def normalize_phone(raw: str) -> str:
@@ -104,6 +105,10 @@ class JsonDataSource:
 
     def get_order(self, order_id: str) -> Order | None:
         return self._orders.get(order_id.strip().upper())
+
+    def orders_for_customer(self, customer_id: str) -> list[Order]:
+        mine = [o for o in self._orders.values() if o.customer_id == customer_id]
+        return sorted(mine, key=lambda o: o.created_at, reverse=True)
 
     def find_customer_by_phone(self, phone: str) -> Customer | None:
         target = normalize_phone(phone)

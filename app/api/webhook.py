@@ -1,5 +1,6 @@
 """Meta webhook endpoints. The POST handler verifies, deduplicates, schedules work and returns fast."""
 
+import hmac
 import json
 import logging
 
@@ -8,12 +9,16 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request, R
 from app.core.errors import InvalidSignature, WhatsAppSendFailed
 from app.core.logging import correlation_id, new_correlation_id
 from app.core.security import verify_meta_signature
-from app.whatsapp.inbound import InboundMessage, extract_messages
+from app.whatsapp.inbound import InboundMessage, extract_messages, sanitize_text
 
 log = logging.getLogger("webhook")
 router = APIRouter()
 
 MAX_BODY_BYTES = 256 * 1024
+RATE_LIMITED_REPLY = (
+    "You are sending messages too quickly. Please wait a minute and try again.\n"
+    "Aap bohat tezi se messages bhej rahe hain. Ek minute baad dobara koshish karein."
+)
 UNSUPPORTED_TYPE_REPLY = (
     "For now I can only read text messages. Please type your question.\n"
     "Abhi main sirf text messages parh sakta hoon. Apna sawal likh kar bhejein."
@@ -28,7 +33,7 @@ async def verify_subscription(
     challenge: str = Query("", alias="hub.challenge"),
 ) -> Response:
     expected = request.app.state.settings.whatsapp_verify_token
-    if mode == "subscribe" and expected and token == expected:
+    if mode == "subscribe" and expected and hmac.compare_digest(token.encode(), expected.encode()):
         return Response(content=challenge, media_type="text/plain")
     raise HTTPException(status_code=403, detail="Verification failed")
 
@@ -36,6 +41,9 @@ async def verify_subscription(
 @router.post("/webhook")
 async def receive(request: Request, background: BackgroundTasks) -> dict[str, str]:
     new_correlation_id()
+    declared = request.headers.get("content-length", "")
+    if declared.isdigit() and int(declared) > MAX_BODY_BYTES:
+        raise HTTPException(status_code=413, detail="Payload too large")
     raw = await request.body()
     if len(raw) > MAX_BODY_BYTES:
         raise HTTPException(status_code=413, detail="Payload too large")
@@ -66,10 +74,13 @@ async def handle_message(app, msg: InboundMessage, cid: str) -> None:  # type: i
     correlation_id.set(cid)
     state = app.state
     async with state.locks.for_phone(msg.phone):
-        if not msg.text:
+        if not state.limiter.allow(msg.phone):
+            log.warning("rate_limited", extra={"data": {"message_id": msg.message_id}})
+            reply_text = RATE_LIMITED_REPLY
+        elif not msg.text:
             reply_text = UNSUPPORTED_TYPE_REPLY
         else:
-            reply = await state.agent.reply(msg.phone, msg.text)
+            reply = await state.agent.reply(msg.phone, sanitize_text(msg.text))
             reply_text = reply.text
         try:
             await state.sender.send_text(msg.phone, reply_text)

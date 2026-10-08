@@ -33,6 +33,10 @@ class CheckStockArgs(_Strict):
         return self
 
 
+class ListOrdersArgs(_Strict):
+    limit: int = Field(default=3, ge=1, le=5, description="How many recent orders to return (1-5).")
+
+
 class OrderStatusArgs(_Strict):
     order_id: str = Field(pattern=r"^[A-Za-z]{2,5}-?\d{3,10}$", description="Order ID such as ORD-10021.")
 
@@ -124,6 +128,20 @@ def build_registry(source: BusinessDataSource) -> ToolRegistry:
             },
         )
 
+    def list_my_orders(args: ListOrdersArgs, ctx: ToolContext) -> ToolResult:
+        if ctx.customer is None:
+            return ToolResult(
+                ToolStatus.CUSTOMER_NOT_LINKED,
+                message="This WhatsApp number is not linked to a customer account.",
+            )
+        orders = source.orders_for_customer(ctx.customer.customer_id)[: args.limit]
+        if not orders:
+            return ToolResult(ToolStatus.NOT_FOUND, message="This customer has no orders.")
+        return ToolResult(ToolStatus.OK, data=[
+            {"order_id": o.order_id, "status": o.status, "total_pkr": o.total, "placed_on": o.created_at}
+            for o in orders
+        ])
+
     registry = ToolRegistry()
     registry.register(Tool(
         "search_products",
@@ -139,5 +157,10 @@ def build_registry(source: BusinessDataSource) -> ToolRegistry:
         "get_order_status",
         "Get status, items, courier and tracking for one of the customer's own orders.",
         OrderStatusArgs, get_order_status,
+    ))
+    registry.register(Tool(
+        "list_my_orders",
+        "List the customer's most recent orders. Use when they ask about 'my orders' without giving an order ID.",
+        ListOrdersArgs, list_my_orders,
     ))
     return registry

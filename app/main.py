@@ -15,7 +15,7 @@ from app.llm.base import LLMProvider
 from app.llm.groq_provider import GroqProvider
 from app.tools.catalog import build_registry
 from app.whatsapp.client import ConsoleSender, MessageSender, WhatsAppClient
-from app.whatsapp.inbound import ConversationLocks, DedupStore
+from app.whatsapp.inbound import ConversationLocks, DedupStore, RateLimiter
 
 log = logging.getLogger("app")
 
@@ -60,10 +60,22 @@ def create_app(
     app.state.settings = settings
     app.state.source = source
     app.state.registry = registry
-    app.state.agent = Agent(llm, registry, source, ConversationMemory(settings.history_messages), settings.max_tool_steps)
+    app.state.agent = Agent(llm, registry, source, ConversationMemory(settings.history_messages, settings.max_tracked_phones), settings.max_tool_steps)
     app.state.sender = sender
     app.state.dedup = DedupStore(settings.dedup_ttl_seconds)
-    app.state.locks = ConversationLocks()
+    app.state.locks = ConversationLocks(settings.max_tracked_phones)
+    app.state.limiter = RateLimiter(
+        settings.rate_limit_messages, settings.rate_limit_window_seconds, settings.max_tracked_phones
+    )
+
+    @app.middleware("http")
+    async def security_headers(request: Request, call_next):  # type: ignore[no-untyped-def]
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["Cache-Control"] = "no-store"
+        return response
 
     app.include_router(webhook.router)
     if settings.dev_endpoints_enabled:

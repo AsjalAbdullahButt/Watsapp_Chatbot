@@ -14,9 +14,14 @@ data file. It cannot create, change or cancel anything.
 | Messages from one customer answered in order | Done (in memory) |
 | Groq behind a provider interface | Done |
 | Strict tool registry: unknown tools, bad arguments and disabled tools rejected | Done |
-| Tools: `search_products`, `check_stock`, `get_order_status` | Done, read-only |
+| Tools: `search_products`, `check_stock`, `get_order_status`, `list_my_orders` | Done, read-only |
 | Order ownership: customers only see their own orders | Done |
 | Safe fallback when Groq is down | Done |
+| Per-number rate limit (default 10 messages / 60 s) | Done (in memory) |
+| Constant-time verify-token check, `Content-Length` precheck, security headers | Done |
+| Control / bidi characters stripped from incoming text | Done |
+| Bounded in-memory state (history, locks, rate counters evicted LRU) | Done |
+| Non-dev environments refuse to start without all secrets set | Done |
 | Terminal chat and `/dev/chat` for testing without WhatsApp | Done |
 | RabbitMQ/Celery, Redis, SQL Server, OTP, handoff, audit DB | Not in this build (V0+ of the full roadmap) |
 
@@ -86,11 +91,12 @@ SQL Server later; tools and the agent stay the same.
 pytest -q
 ```
 
-24 tests cover: handshake, unsigned and wrongly signed posts, duplicate delivery,
+31 tests cover: handshake, unsigned and wrongly signed posts, duplicate delivery,
 status events, malformed JSON, non-text messages, stock answers from tool data,
 unknown tool (`run_sql`) rejected, bad and extra arguments rejected, another
 customer's order hidden, unknown number blocked from orders, disabled tool hidden
-and refused, Groq outage fallback, tool-loop limit, and per-phone history.
+and refused, Groq outage fallback, tool-loop limit, per-phone history, `list_my_orders` ownership, rate limiting, oversized payloads, security headers, required secrets outside dev, and text sanitising.
+Tuning: `RATE_LIMIT_MESSAGES`, `RATE_LIMIT_WINDOW_SECONDS` and `MAX_TRACKED_PHONES` can be set in `.env`.
 Tests use a scripted fake model, so they do not need a Groq key.
 
 ## Layout
@@ -101,10 +107,10 @@ app/
   core/                config, logging (JSON + correlation_id), signature check, errors
   data/source.py       BusinessDataSource contract + JSON implementation
   tools/registry.py    strict registry, ToolResult statuses, tool audit log
-  tools/catalog.py     the three read-only tools
+  tools/catalog.py     the four read-only tools
   llm/                 LLMProvider interface, GroqProvider
   agent/               agent loop, conversation memory, system prompt
-  whatsapp/            inbound parsing, dedup, per-phone locks, outbound client
+  whatsapp/            inbound parsing, dedup, rate limiter, sanitiser, per-phone locks, outbound client
   api/                 /webhook, /dev/chat
 scripts/chat.py        terminal chat
 tests/

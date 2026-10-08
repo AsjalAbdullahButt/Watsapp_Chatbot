@@ -1,8 +1,9 @@
 """Parsing of Meta webhook payloads, duplicate protection and per-conversation ordering."""
 
 import asyncio
+import re
 import time
-from collections import OrderedDict, defaultdict
+from collections import OrderedDict, deque
 from dataclasses import dataclass
 from typing import Any
 
@@ -59,10 +60,54 @@ class DedupStore:
 
 
 class ConversationLocks:
-    """One lock per phone, so two quick messages from one customer are answered in order."""
+    """One lock per phone, so two quick messages from one customer are answered in order.
 
-    def __init__(self) -> None:
-        self._locks: defaultdict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
+    Idle locks are evicted (least recently used) so the table stays bounded.
+    """
+
+    def __init__(self, max_items: int = 10_000) -> None:
+        self._max = max_items
+        self._locks: OrderedDict[str, asyncio.Lock] = OrderedDict()
 
     def for_phone(self, phone: str) -> asyncio.Lock:
-        return self._locks[phone]
+        lock = self._locks.get(phone)
+        if lock is None:
+            lock = self._locks[phone] = asyncio.Lock()
+        self._locks.move_to_end(phone)
+        while len(self._locks) > self._max:
+            oldest = next(iter(self._locks))
+            if self._locks[oldest].locked():
+                break
+            del self._locks[oldest]
+        return lock
+
+
+class RateLimiter:
+    """Sliding-window limit per phone, so one number cannot flood the model or the bill."""
+
+    def __init__(self, max_events: int, window_seconds: int, max_phones: int = 10_000) -> None:
+        self._max = max_events
+        self._window = window_seconds
+        self._max_phones = max_phones
+        self._events: OrderedDict[str, deque[float]] = OrderedDict()
+
+    def allow(self, phone: str) -> bool:
+        now = time.monotonic()
+        q = self._events.setdefault(phone, deque())
+        self._events.move_to_end(phone)
+        while q and q[0] <= now - self._window:
+            q.popleft()
+        while len(self._events) > self._max_phones:
+            self._events.popitem(last=False)
+        if len(q) >= self._max:
+            return False
+        q.append(now)
+        return True
+
+
+_CONTROL = re.compile("[\x00-\x08\x0b\x0c\x0e-\x1f\x7f\u200b-\u200f\u202a-\u202e\u2066-\u2069]")
+
+
+def sanitize_text(text: str) -> str:
+    """Drop control and bidi-override characters that can hide instructions or break logs."""
+    return _CONTROL.sub("", text).strip()

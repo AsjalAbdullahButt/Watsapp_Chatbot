@@ -1,7 +1,7 @@
 """Agent loop: ask the model, run only registered tools, answer from verified results."""
 
 import logging
-from collections import defaultdict, deque
+from collections import OrderedDict, deque
 from dataclasses import dataclass, field
 
 from app.agent.prompts import FALLBACK_INCOMPLETE, FALLBACK_UNAVAILABLE, PROMPT_VERSION, SYSTEM_PROMPT
@@ -32,14 +32,20 @@ class AgentReply:
 class ConversationMemory:
     """Bounded in-process history per phone. Replace with Redis + SQL in the full build."""
 
-    def __init__(self, max_messages: int) -> None:
-        self._store: dict[str, deque[Message]] = defaultdict(lambda: deque(maxlen=max_messages))
+    def __init__(self, max_messages: int, max_phones: int = 10_000) -> None:
+        self._max_messages = max_messages
+        self._max_phones = max_phones
+        self._store: OrderedDict[str, deque[Message]] = OrderedDict()
 
     def history(self, phone: str) -> list[Message]:
-        return list(self._store[phone])
+        return list(self._store.get(phone, ()))
 
     def add(self, phone: str, role: str, content: str) -> None:
-        self._store[phone].append({"role": role, "content": content})
+        q = self._store.setdefault(phone, deque(maxlen=self._max_messages))
+        self._store.move_to_end(phone)
+        q.append({"role": role, "content": content})
+        while len(self._store) > self._max_phones:
+            self._store.popitem(last=False)
 
 
 class Agent:
